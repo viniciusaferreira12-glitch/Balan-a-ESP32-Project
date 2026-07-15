@@ -4,9 +4,9 @@
 #include <HTTPClient.h>
 
 // ─── Configurações WiFi e Servidor ───────────────────────────────────────────
-const char* ssid     = "TORIGA";
-const char* password = "vini2003";
-const char* url      = "http://192.168.0.5:5000/dado"; // IP do seu PC
+const char* ssid     = "xxxx"; //Nome da rede
+const char* password = "xxxx"; //Senha
+const char* url      = "http://192.168.0.1:5000/dado"; // IP do seu PC deixando o 5000
 
 // ─── Pinos HX711 ─────────────────────────────────────────────────────────────
 const int DOUT_PIN = 16;
