@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Balança ESP32</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #1a1a2e;
+      color: white;
+      min-height: 100vh;
+    }
+
+    .abas {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 24px 0 0;
+    }
+
+    .aba {
+      padding: 10px 32px;
+      border-radius: 12px 12px 0 0;
+      border: none;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-family: inherit;
+      letter-spacing: 1px;
+      background: #16213e;
+      color: #4a5568;
+      transition: all 0.2s;
+    }
+
+    .aba.ativa {
+      background: #0f3460;
+      color: #00d4ff;
+    }
+
+    .conteudo {
+      display: none;
+      padding: 40px 20px;
+      justify-content: center;
+      align-items: center;
+      min-height: calc(100vh - 70px);
+    }
+
+    .conteudo.ativo { display: flex; }
+
+    .card {
+      text-align: center;
+      background: #16213e;
+      padding: 60px 100px;
+      border-radius: 24px;
+      box-shadow: 0 0 40px rgba(0, 150, 255, 0.2);
+    }
+
+    .titulo {
+      color: #7a8ba0;
+      font-size: 1rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 30px;
+    }
+
+    .valor-container {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    #valor {
+      font-size: 7rem;
+      font-weight: 700;
+      color: #00d4ff;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .unidade {
+      font-size: 2rem;
+      color: #4a9eb5;
+      margin-bottom: 14px;
+    }
+
+    .separador {
+      width: 60px;
+      height: 2px;
+      background: #00d4ff33;
+      margin: 28px auto;
+      border-radius: 2px;
+    }
+
+    #status {
+      color: #4a5568;
+      font-size: 0.85rem;
+      letter-spacing: 1px;
+    }
+
+    .indicador {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #555;
+      margin-right: 6px;
+      vertical-align: middle;
+      transition: background 0.3s;
+    }
+
+    .indicador.ativo {
+      background: #00ff88;
+      box-shadow: 0 0 6px #00ff88;
+    }
+
+    .card-grafico {
+      background: #16213e;
+      border-radius: 24px;
+      box-shadow: 0 0 40px rgba(0, 150, 255, 0.2);
+      padding: 36px 40px;
+      width: 100%;
+      max-width: 900px;
+    }
+
+    .grafico-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 28px;
+    }
+
+    .grafico-titulo {
+      color: #7a8ba0;
+      font-size: 1rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    .botoes-janela {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn-janela {
+      padding: 6px 20px;
+      border-radius: 8px;
+      border: 1px solid #00d4ff44;
+      background: transparent;
+      color: #4a5568;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .btn-janela.ativo {
+      background: #00d4ff22;
+      color: #00d4ff;
+      border-color: #00d4ff;
+    }
+
+    .btn-vivo {
+      padding: 6px 16px;
+      border-radius: 8px;
+      border: 1px solid #00ff8844;
+      background: transparent;
+      color: #4a5568;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .btn-vivo.ativo {
+      background: #00ff8822;
+      color: #00ff88;
+      border-color: #00ff88;
+    }
+
+    /* Navegação por setas */
+    .nav-setas {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .btn-seta {
+      padding: 8px 20px;
+      border-radius: 8px;
+      border: 1px solid #ffffff22;
+      background: transparent;
+      color: #7a8ba0;
+      cursor: pointer;
+      font-size: 1.1rem;
+      font-family: inherit;
+      transition: all 0.2s;
+      user-select: none;
+    }
+
+    .btn-seta:hover {
+      border-color: #00d4ff88;
+      color: #00d4ff;
+    }
+
+    .nav-label {
+      color: #4a5568;
+      font-size: 0.8rem;
+      letter-spacing: 1px;
+      min-width: 160px;
+      text-align: center;
+    }
+
+    /* cursor de arrasto no canvas */
+    #grafico {
+      cursor: grab;
+    }
+
+    #grafico:active {
+      cursor: grabbing;
+    }
+
+    canvas { width: 100% !important; }
+  </style>
+</head>
+<body>
+
+  <div class="abas">
+    <button class="aba ativa" onclick="trocarAba('leitura', this)">Leitura</button>
+    <button class="aba" onclick="trocarAba('grafico', this)">Gráfico</button>
+  </div>
+
+  <div class="conteudo ativo" id="aba-leitura">
+    <div class="card">
+      <div class="titulo">Balança ESP32</div>
+      <div class="valor-container">
+        <div id="valor">--</div>
+        <div class="unidade">kg</div>
+      </div>
+      <div class="separador"></div>
+      <div id="status">
+        <span class="indicador" id="indicador"></span>
+        Aguardando dados...
+      </div>
+    </div>
+  </div>
+
+  <div class="conteudo" id="aba-grafico">
+    <div class="card-grafico">
+      <div class="grafico-header">
+        <div class="grafico-titulo">Histórico de Peso</div>
+        <div class="botoes-janela">
+          <button class="btn-vivo ativo" id="btn-vivo" onclick="voltarAoVivo()">● Ao vivo</button>
+          <button class="btn-janela ativo" id="btn-min" onclick="setJanela('minutos')">10 min</button>
+          <button class="btn-janela" id="btn-hora" onclick="setJanela('horas')">10 horas</button>
+        </div>
+      </div>
+
+      <canvas id="grafico" height="350"></canvas>
+
+      <div class="nav-setas">
+        <button class="btn-seta" id="btn-esq" onclick="navegarSeta(-1)">← Voltar</button>
+        <div class="nav-label" id="nav-label">Navegação por setas</div>
+        <button class="btn-seta" id="btn-dir" onclick="navegarSeta(1)">Avançar →</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Abas ──────────────────────────────────────────────────────────────────
+    function trocarAba(nome, btn) {
+      document.querySelectorAll('.conteudo').forEach(el => el.classList.remove('ativo'));
+      document.querySelectorAll('.aba').forEach(el => el.classList.remove('ativa'));
+      document.getElementById('aba-' + nome).classList.add('ativo');
+      btn.classList.add('ativa');
+    }
+
+    // ── Leitura ao vivo ───────────────────────────────────────────────────────
+    let ultimoValor = null;
+
+    async function atualizar() {
+      try {
+        const resp = await fetch('/dado');
+        const dados = await resp.json();
+        if (dados.valor !== null && dados.valor !== undefined) {
+          const kg = (dados.valor / 1000).toFixed(2);
+          document.getElementById('valor').textContent = kg;
+          if (dados.valor !== ultimoValor) {
+            const ind = document.getElementById('indicador');
+            ind.classList.add('ativo');
+            setTimeout(() => ind.classList.remove('ativo'), 300);
+            ultimoValor = dados.valor;
+          }
+          document.getElementById('status').innerHTML =
+            `<span class="indicador" id="indicador"></span>
+             Atualizado: ${new Date().toLocaleTimeString('pt-BR')}`;
+        }
+      } catch (e) {
+        document.getElementById('status').innerHTML =
+          `<span class="indicador" id="indicador"></span> Erro de conexão`;
+      }
+    }
+
+    setInterval(atualizar, 2000);
+    atualizar();
+
+    // ── Gráfico ───────────────────────────────────────────────────────────────
+    let janelaAtual = 'minutos';
+    let aoVivo = true;
+    let offsetJanela = 0;   // offset em unidades da janela (minutos ou horas)
+    let tsInicio = null;
+    let todosOsPontos = [];
+
+    const ctx = document.getElementById('grafico').getContext('2d');
+    const grafico = new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: [{
+          label: 'Peso (kg)',
+          data: [],
+          borderColor: '#00d4ff',
+          backgroundColor: 'rgba(0, 212, 255, 0.08)',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.3,
+          fill: true,
+        }]
+      },
+      options: {
+        animation: false,
+        responsive: true,
+        scales: {
+          x: {
+            type: 'linear',
+            ticks: {
+              color: '#4a5568',
+              callback: val => janelaAtual === 'minutos'
+                ? val.toFixed(1) + ' min'
+                : val.toFixed(1) + ' h',
+              maxTicksLimit: 10,
+            },
+            grid: { color: '#ffffff11' },
+            min: 0,
+            max: 10,
+          },
+          y: {
+            min: 0,
+            max: 30,
+            ticks: {
+              color: '#4a5568',
+              callback: val => val + ' kg',
+            },
+            grid: { color: '#ffffff11' },
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: c => c.parsed.y.toFixed(2) + ' kg',
+              title: c => {
+                const v = c[0].parsed.x;
+                return janelaAtual === 'minutos'
+                  ? v.toFixed(2) + ' min'
+                  : v.toFixed(3) + ' h';
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // ── Renderiza o gráfico com base no offset atual ───────────────────────────
+    function renderizarGrafico() {
+      if (todosOsPontos.length === 0) return;
+
+      const fator = janelaAtual === 'minutos' ? 60000 : 3600000;
+      const janela = 10;
+
+      const pontos = todosOsPontos.map(p => ({
+        x: (p.timestamp - tsInicio) / fator,
+        y: parseFloat((p.valor / 1000).toFixed(2))
+      }));
+
+      const xMaxTotal = pontos[pontos.length - 1].x;
+
+      let xMax, xMin;
+
+      if (aoVivo) {
+        xMax = xMaxTotal;
+        xMin = Math.max(0, xMax - janela);
+      } else {
+        // navega com offset (negativo = passado)
+        xMax = Math.max(janela, xMaxTotal + offsetJanela);
+        xMin = xMax - janela;
+        if (xMin < 0) { xMin = 0; xMax = janela; }
+        // se chegou ao presente, volta ao vivo
+        if (xMax >= xMaxTotal) {
+          aoVivo = true;
+          offsetJanela = 0;
+          atualizarBotaoVivo();
+        }
+      }
+
+      grafico.options.scales.x.min = xMin;
+      grafico.options.scales.x.max = xMax;
+      grafico.data.datasets[0].data = pontos.filter(p => p.x >= xMin && p.x <= xMax);
+      grafico.update();
+
+      // atualiza label de navegação
+      const unidade = janelaAtual === 'minutos' ? 'min' : 'h';
+      document.getElementById('nav-label').textContent =
+        `${xMin.toFixed(1)}${unidade} → ${xMax.toFixed(1)}${unidade}`;
+    }
+
+    // ── Busca histórico do servidor ───────────────────────────────────────────
+    async function atualizarGrafico() {
+      try {
+        const resp = await fetch('/historico');
+        const hist = await resp.json();
+        if (hist.length === 0) return;
+        if (!tsInicio) tsInicio = hist[0].timestamp;
+        todosOsPontos = hist;
+        renderizarGrafico();
+      } catch (e) {
+        console.error('Erro ao buscar histórico:', e);
+      }
+    }
+
+    setInterval(atualizarGrafico, 5000);
+    atualizarGrafico();
+
+    // ── Janela ────────────────────────────────────────────────────────────────
+    function setJanela(modo) {
+      janelaAtual = modo;
+      offsetJanela = 0;
+      document.getElementById('btn-min').classList.toggle('ativo', modo === 'minutos');
+      document.getElementById('btn-hora').classList.toggle('ativo', modo === 'horas');
+      renderizarGrafico();
+    }
+
+    // ── Botão Ao Vivo ─────────────────────────────────────────────────────────
+    function voltarAoVivo() {
+      aoVivo = true;
+      offsetJanela = 0;
+      atualizarBotaoVivo();
+      renderizarGrafico();
+    }
+
+    function atualizarBotaoVivo() {
+      document.getElementById('btn-vivo').classList.toggle('ativo', aoVivo);
+    }
+
+    // ── Navegação por setas ───────────────────────────────────────────────────
+    function navegarSeta(direcao) {
+      // direcao: -1 = voltar, +1 = avançar
+      aoVivo = false;
+      atualizarBotaoVivo();
+      const passo = janelaAtual === 'minutos' ? 1 : 1; // 1 min ou 1 hora
+      offsetJanela += direcao * (-passo);
+      // não deixa ir além do início
+      if (offsetJanela > 0) offsetJanela = 0;
+      renderizarGrafico();
+    }
+
+    // ── Arrasto com mouse (pan suave) ─────────────────────────────────────────
+    const canvas = document.getElementById('grafico');
+    let arrastando = false;
+    let xArrastaInicio = null;
+    let offsetAoIniciarArrasto = 0;
+
+    canvas.addEventListener('mousedown', e => {
+      arrastando = true;
+      xArrastaInicio = e.clientX;
+      offsetAoIniciarArrasto = offsetJanela;
+      aoVivo = false;
+      atualizarBotaoVivo();
+    });
+
+    canvas.addEventListener('mousemove', e => {
+      if (!arrastando) return;
+      const dx = e.clientX - xArrastaInicio; // pixels arrastados
+      const largura = canvas.clientWidth;
+      const janela = 10; // 10 min ou 10 h
+      // converte pixels em unidades de tempo
+      const deltaUnidade = -(dx / largura) * janela;
+      offsetJanela = offsetAoIniciarArrasto + deltaUnidade;
+      if (offsetJanela > 0) offsetJanela = 0;
+      renderizarGrafico();
+    });
+
+    canvas.addEventListener('mouseup', () => { arrastando = false; });
+    canvas.addEventListener('mouseleave', () => { arrastando = false; });
+  </script>
+</body>
+</html>
